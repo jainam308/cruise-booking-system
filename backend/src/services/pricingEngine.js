@@ -14,8 +14,12 @@
  * @throws if age < 0 or age > 17 (caller must validate 18+ as adult)
  */
 function getChildMultiplier(age, bands) {
-  if (age < 0) throw new Error('Invalid age: must be 0 or above.');
-  if (age > 17) throw new Error('Child age must be 0–17. Passengers aged 18+ must be entered as adults.');
+  if (typeof age !== 'number' || isNaN(age) || !Number.isInteger(age) || age < 1) {
+    throw new Error('Invalid child age: must be an integer between 1 and 17.');
+  }
+  if (age > 17) {
+    throw new Error('Child age must be between 1 and 17. Passengers aged 18+ must be entered as adults.');
+  }
 
   const band = bands.find(b => age >= b.minAge && age <= b.maxAge);
   if (!band) throw new Error(`No fare band found for age ${age}.`);

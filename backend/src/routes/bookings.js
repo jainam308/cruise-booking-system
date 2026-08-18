@@ -6,7 +6,8 @@ const Order = require('../models/Order');
 const Settings = require('../models/Settings');
 const PricingRules = require('../models/PricingRules');
 const { buildPriceBreakdown } = require('../services/pricingEngine');
-const { nanoid } = require('nanoid');
+const { customAlphabet } = require('nanoid');
+const generateRefSuffix = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
 
 // ── Shared: load pricing rules from DB ────────────────────────────────────────
 async function loadRules() {
@@ -43,8 +44,15 @@ function validateBookingInputs(passengers) {
   }
   for (const p of passengers) {
     if (p.type === 'child') {
-      if (p.age === undefined || p.age === null) return 'Child age is required.';
-      if (p.age < 0 || p.age > 17) return 'Child age must be 0–17. Passengers aged 18+ must be entered as adults.';
+      if (p.age === undefined || p.age === null || p.age === '') {
+        return 'Child age is required.';
+      }
+      const ageNum = Number(p.age);
+      if (!Number.isInteger(ageNum) || ageNum < 1 || ageNum > 17) {
+        return ageNum >= 18
+          ? 'Child age must be between 1 and 17. Passengers aged 18+ must be entered as adults.'
+          : 'Child age must be an integer between 1 and 17.';
+      }
     }
   }
   return null; // no error
@@ -189,7 +197,7 @@ router.post('/confirm', async (req, res) => {
     }
 
     // ── Save Order snapshot ───────────────────────────────────────────────────
-    const bookingReference = 'CBS-' + nanoid(6).toUpperCase();
+    const bookingReference = 'CBS-' + generateRefSuffix();
 
     const order = await Order.create({
       bookingReference,

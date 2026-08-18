@@ -10,7 +10,7 @@ Odysseus sells cruise holidays. This system allows customers to find a cruise, s
 ### 1. Child Fare Multipliers (by age)
 | Age Range | Multiplier | Price |
 |-----------|-----------|-------|
-| 0–4 | 0% | Free |
+| 1–4 | 0% | Free (infants/children aged 1–4) |
 | 5–11 | 50% | Half adult fare |
 | 12–17 | 75% | Three-quarter adult fare |
 | 18+ | — | Treated as adult (not a child) |
@@ -18,7 +18,7 @@ Odysseus sells cruise holidays. This system allows customers to find a cruise, s
 ### 2. Booking Limits
 - Minimum 1 adult per booking
 - Maximum 6 passengers per booking (adults + children combined)
-- Children must be aged 0–17; passengers aged 18+ must be entered as adults
+- Children must be aged 1–17 (age 0, negatives, and decimals disallowed); passengers aged 18+ must be entered as adults
 
 ### 3. Group Discount (applied to cruise fare subtotal only)
 | Total Passengers | Discount |

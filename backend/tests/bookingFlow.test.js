@@ -158,14 +158,25 @@ describe('POST /api/bookings/quote', () => {
   });
 
   // ── Child fare boundaries ───────────────────────────────────────────────────
-  test('child age 0 is free', async () => {
+  test('child age 1 is free (lower boundary)', async () => {
+    const res = await request(app).post('/api/bookings/quote').send({
+      cruiseId: royalId,
+      passengers: [{ type: 'adult' }, { type: 'child', age: 1 }],
+      selectedExtras: [],
+    });
+    expect(res.status).toBe(200);
+    const child = res.body.breakdown.passengers.find(p => p.type === 'child');
+    expect(child.computedFare).toBe(0);
+  });
+
+  test('child age 0 is rejected (invalid age)', async () => {
     const res = await request(app).post('/api/bookings/quote').send({
       cruiseId: royalId,
       passengers: [{ type: 'adult' }, { type: 'child', age: 0 }],
       selectedExtras: [],
     });
-    const child = res.body.breakdown.passengers.find(p => p.type === 'child');
-    expect(child.computedFare).toBe(0);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/between 1 and 17/i);
   });
 
   test('child age 4 is free (upper boundary)', async () => {
@@ -174,6 +185,7 @@ describe('POST /api/bookings/quote', () => {
       passengers: [{ type: 'adult' }, { type: 'child', age: 4 }],
       selectedExtras: [],
     });
+    expect(res.status).toBe(200);
     const child = res.body.breakdown.passengers.find(p => p.type === 'child');
     expect(child.computedFare).toBe(0);
   });
@@ -230,7 +242,7 @@ describe('POST /api/bookings/quote', () => {
       selectedExtras: [],
     });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/0–17/);
+    expect(res.body.error).toMatch(/between 1 and 17/i);
   });
 
   // ── Capacity ────────────────────────────────────────────────────────────────

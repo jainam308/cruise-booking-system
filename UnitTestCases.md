@@ -4,14 +4,16 @@
 
 | Test ID | Input (age, adultFare) | Expected fare | Reason |
 |---------|----------------------|--------------|--------|
-| CF-01 | age=0, fare=$1200 | $0 | Band 0–4: free |
-| CF-02 | age=4, fare=$1200 | $0 | Band 0–4 upper boundary: free |
+| CF-01 | age=1, fare=$1200 | $0 | Band 1–4: free (lower boundary) |
+| CF-02 | age=4, fare=$1200 | $0 | Band 1–4: free (upper boundary) |
 | CF-03 | age=5, fare=$1200 | $600 | Band 5–11 lower boundary: 50% |
 | CF-04 | age=11, fare=$1200 | $600 | Band 5–11 upper boundary: 50% |
 | CF-05 | age=12, fare=$1200 | $900 | Band 12–17 lower boundary: 75% |
 | CF-06 | age=17, fare=$1200 | $900 | Band 12–17 upper boundary: 75% |
 | CF-07 | age=18, fare=$1200 | ERROR | 18+ is adult; reject with message |
-| CF-08 | age=-1, fare=$1200 | ERROR | Negative age invalid |
+| CF-08 | age=0, fare=$1200 | ERROR | Age 0 disallowed (real-world validation) |
+| CF-09 | age=-1, fare=$1200 | ERROR | Negative age invalid |
+| CF-10 | age=4.5, fare=$1200 | ERROR | Non-integer age invalid |
 
 ## 2. Group Discount (pricingEngine — computeGroupDiscount)
 
@@ -32,6 +34,7 @@
 | BV-02 | 7 passengers (4 adults + 3 children) | REJECT: max 6 passengers |
 | BV-03 | 6 passengers (3 adults + 3 children) | ACCEPT |
 | BV-04 | Child age=18 entered | REJECT: must be adult |
+| BV-05 | Child age=0 entered | REJECT: must be between 1 and 17 |
 
 ## 4. Capacity
 

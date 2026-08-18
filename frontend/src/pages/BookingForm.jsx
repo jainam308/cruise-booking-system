@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
-import { getQuote, confirmBooking } from '../api/client'
+import { getQuote, confirmBooking, getCruiseById } from '../api/client'
 
 const fmt = (n) => `$${Number(n).toFixed(2)}`
 
@@ -14,7 +14,7 @@ export default function BookingForm() {
   const { cruiseId } = useParams()
   const { state } = useLocation()
   const navigate = useNavigate()
-  const cruise = state?.cruise
+  const [cruise, setCruise] = useState(state?.cruise || null)
 
   const [adultCount, setAdultCount]       = useState(1)
   const [children, setChildren]           = useState([])       // [{age}]
@@ -28,7 +28,19 @@ export default function BookingForm() {
   const [loading, setLoading]             = useState(false)
   const [confirming, setConfirming]       = useState(false)
 
+  // Fetch or refresh cruise to guarantee accurate capacity
+  useEffect(() => {
+    if (cruiseId) {
+      getCruiseById(cruiseId)
+        .then(setCruise)
+        .catch(() => {
+          if (!cruise) setError('Failed to load cruise details.')
+        })
+    }
+  }, [cruiseId])
+
   const totalPassengers = adultCount + children.length
+  const isOverCapacity = cruise && totalPassengers > cruise.capacityLeft
 
   function buildPassengers() {
     const adults = Array.from({ length: adultCount }, () => ({ type: 'adult' }))
@@ -59,7 +71,37 @@ export default function BookingForm() {
     setQuote(null)
   }
 
+  function validateForm() {
+    if (totalPassengers < 1) return 'At least one passenger is required.'
+    if (totalPassengers > 6) return 'A booking cannot have more than 6 passengers.'
+    if (adultCount < 1) return 'At least 1 adult is required per booking.'
+    
+    for (let i = 0; i < children.length; i++) {
+      const ageVal = children[i].age
+      if (ageVal === '' || ageVal === undefined || ageVal === null) {
+        return `Please enter an age for Child ${i + 1}.`
+      }
+      const ageNum = Number(ageVal)
+      if (isNaN(ageNum) || !Number.isInteger(ageNum) || ageNum < 1 || ageNum > 17) {
+        return ageNum >= 18
+          ? `Child ${i + 1} is aged 18+ and must be booked as an Adult.`
+          : `Child ${i + 1} age must be an integer between 1 and 17 (age 0 is not permitted).`
+      }
+    }
+
+    if (cruise && totalPassengers > cruise.capacityLeft) {
+      return `Not enough capacity: You selected ${totalPassengers} passenger(s), but only ${cruise.capacityLeft} spot(s) are left.`
+    }
+
+    return null
+  }
+
   async function handleGetQuote() {
+    const clientErr = validateForm()
+    if (clientErr) {
+      setError(clientErr)
+      return
+    }
     setError(null)
     setLoading(true)
     try {
@@ -79,10 +121,22 @@ export default function BookingForm() {
   }
 
   async function handleConfirm() {
-    if (!customerName.trim() || !customerEmail.trim()) {
-      setError('Please fill in your name and email before confirming.')
+    if (!customerName.trim()) {
+      setError('Customer full name is required.')
       return
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!customerEmail.trim() || !emailRegex.test(customerEmail.trim())) {
+      setError('Please provide a valid email address.')
+      return
+    }
+
+    const clientErr = validateForm()
+    if (clientErr) {
+      setError(clientErr)
+      return
+    }
+
     setError(null)
     setConfirming(true)
     try {
@@ -104,7 +158,7 @@ export default function BookingForm() {
     }
   }
 
-  if (!cruise) return <div className="error">Cruise data missing — please go back and select a cruise.</div>
+  if (!cruise) return <div className="error">Loading cruise information…</div>
 
   return (
     <div>
@@ -113,32 +167,63 @@ export default function BookingForm() {
       </button>
 
       <div className="card">
-        <h2>{cruise.cruiseLine} — {cruise.ship}</h2>
-        <p style={{ color: '#718096' }}>{cruise.destination} · {cruise.nights} nights · ${cruise.adultFare}/adult</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <h2>{cruise.cruiseLine} — {cruise.ship}</h2>
+            <p style={{ color: '#718096', marginTop: '0.25rem' }}>
+              📍 {cruise.destination} · 🌙 {cruise.nights} nights · 💵 ${cruise.adultFare.toLocaleString()}/adult
+            </p>
+          </div>
+          <div>
+            {cruise.soldOut ? (
+              <span className="badge-sold-out">Sold Out (0 spots left)</span>
+            ) : cruise.capacityLeft <= 4 ? (
+              <span className="badge-capacity-low">⚠️ Only {cruise.capacityLeft} spot(s) remaining!</span>
+            ) : (
+              <span className="badge-capacity-good">✅ {cruise.capacityLeft} spot(s) available</span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── Passengers ──────────────────────────────────────────────────── */}
       <div className="card">
-        <h3>Passengers</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3>Passengers</h3>
+          <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: isOverCapacity ? '#e53e3e' : '#4a5568' }}>
+            Total: {totalPassengers} / 6 pax
+          </span>
+        </div>
         <p style={{ fontSize: '0.8rem', color: '#718096', marginTop: '0.25rem' }}>
-          Min 1 adult · Max 6 total passengers
+          Min 1 adult · Max 6 total passengers · Child age must be 1–17
         </p>
 
-        <label>Adults</label>
+        {isOverCapacity && (
+          <div className="error" style={{ marginTop: '0.5rem' }}>
+            ⚠️ Capacity exceeded: {totalPassengers} passengers selected, but this cruise only has {cruise.capacityLeft} spot(s) left.
+          </div>
+        )}
+
+        <label>Adults (18+)</label>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.25rem' }}>
           <button className="btn-secondary" onClick={() => { setAdultCount(a => Math.max(1, a - 1)); setQuote(null) }}>−</button>
           <span style={{ minWidth: '2rem', textAlign: 'center', fontWeight: 'bold' }}>{adultCount}</span>
           <button className="btn-secondary" onClick={() => { if (totalPassengers < 6) { setAdultCount(a => a + 1); setQuote(null) } }}>+</button>
         </div>
 
-        <label style={{ marginTop: '1rem' }}>Children (ages 0–17)</label>
+        <label style={{ marginTop: '1rem' }}>Children (ages 1–17 only)</label>
         {children.map((c, i) => (
           <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.4rem' }}>
+            <span style={{ fontSize: '0.85rem', color: '#4a5568', minWidth: '60px' }}>Child {i + 1}:</span>
             <input
-              type="number" min="0" max="17" placeholder="Age"
+              type="number"
+              min="1"
+              max="17"
+              step="1"
+              placeholder="Age (1-17)"
               value={c.age}
               onChange={e => updateChildAge(i, e.target.value)}
-              style={{ width: '80px' }}
+              style={{ width: '120px' }}
             />
             <button className="btn-secondary" onClick={() => removeChild(i)}>Remove</button>
           </div>

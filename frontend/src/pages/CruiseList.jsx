@@ -41,15 +41,21 @@ export default function CruiseList() {
             </div>
           </div>
           <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.875rem', color: '#718096' }}>
-              {cruise.soldOut ? 'No availability' : `${cruise.capacityLeft} place(s) remaining`}
-            </span>
+            <div>
+              {cruise.soldOut ? (
+                <span className="badge-sold-out">Sold Out (0 spots left)</span>
+              ) : cruise.capacityLeft <= 4 ? (
+                <span className="badge-capacity-low">⚠️ Only {cruise.capacityLeft} spot(s) remaining!</span>
+              ) : (
+                <span className="badge-capacity-good">✅ {cruise.capacityLeft} spot(s) available</span>
+              )}
+            </div>
             <button
               className="btn-primary"
               disabled={cruise.soldOut}
               onClick={() => navigate(`/book/${cruise._id}`, { state: { cruise } })}
             >
-              Book Now
+              {cruise.soldOut ? 'Sold Out' : 'Book Now'}
             </button>
           </div>
         </div>

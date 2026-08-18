@@ -30,17 +30,23 @@ const ADULT_FARE = 1200;
 
 // ── CF: Child fare multiplier ─────────────────────────────────────────────────
 describe('getChildMultiplier', () => {
-  test('CF-01: age 0 → 0 (free)', () => expect(getChildMultiplier(0, childFareBands)).toBe(0));
+  test('CF-01: age 1 → 0 (lower boundary of free band)', () => expect(getChildMultiplier(1, childFareBands)).toBe(0));
   test('CF-02: age 4 → 0 (upper boundary of free band)', () => expect(getChildMultiplier(4, childFareBands)).toBe(0));
   test('CF-03: age 5 → 0.5 (lower boundary of 50% band)', () => expect(getChildMultiplier(5, childFareBands)).toBe(0.5));
   test('CF-04: age 11 → 0.5 (upper boundary of 50% band)', () => expect(getChildMultiplier(11, childFareBands)).toBe(0.5));
   test('CF-05: age 12 → 0.75 (lower boundary of 75% band)', () => expect(getChildMultiplier(12, childFareBands)).toBe(0.75));
   test('CF-06: age 17 → 0.75 (upper boundary of 75% band)', () => expect(getChildMultiplier(17, childFareBands)).toBe(0.75));
   test('CF-07: age 18 throws (must be adult)', () => {
-    expect(() => getChildMultiplier(18, childFareBands)).toThrow('Child age must be 0–17');
+    expect(() => getChildMultiplier(18, childFareBands)).toThrow('Child age must be between 1 and 17');
   });
-  test('CF-08: negative age throws', () => {
-    expect(() => getChildMultiplier(-1, childFareBands)).toThrow('Invalid age');
+  test('CF-08: age 0 throws (must be between 1 and 17)', () => {
+    expect(() => getChildMultiplier(0, childFareBands)).toThrow('Invalid child age');
+  });
+  test('CF-09: negative age throws', () => {
+    expect(() => getChildMultiplier(-1, childFareBands)).toThrow('Invalid child age');
+  });
+  test('CF-10: non-integer age throws', () => {
+    expect(() => getChildMultiplier(4.5, childFareBands)).toThrow('Invalid child age');
   });
 });
 

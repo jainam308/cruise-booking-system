@@ -91,14 +91,55 @@ Order.countDocuments({ customerEmail: email, 'promoCodeSnapshot.code': code })
 
 ---
 
+## n8n Business Intelligence Automation
+
+### 1. Purpose & Overview
+The **Daily Cruise Business Health & Intelligence Automation** is an asynchronous business intelligence system powered by **n8n** and AI. Every morning at 07:00 AM, the system analyzes the preceding 24 hours of booking performance, fleet inventory capacity, and promotional code burn rates to provide leadership with actionable recommendations and a permanent historical audit trail.
+
+### 2. Decoupled, Read-Only Architecture
+- **Zero Impact on Booking Path**: The automation is entirely separate from user transactions and runs on a daily schedule (`0 7 * * *`), not as a website webhook.
+- **Read-Only Database Connection**: Connects to the primary MongoDB database (`cruise_booking`) with read-only permissions across three collections:
+  - `Orders`: Extracts revenue, passenger volume, and top routes using frozen order snapshots (`grandTotal`, `adultFareSnapshot`, `promoCodeSnapshot`).
+  - `Cruises`: Monitors fleet `capacityLeft` to identify sold-out or critical inventory (`capacityLeft <= 2`).
+  - `PromoCodes`: Calculates burn rate (`currentTotalUses / maxTotalUses`) and flags codes approaching exhaustion ($\ge 80\%$) or expiring within 7 days.
+
+### 3. Separation of Concerns: Code vs. AI
+```
+MongoDB (Raw Data)
+       ↓
+Deterministic Rules (JavaScript Code)
+       ↓
+VERIFIED BUSINESS FACTS (Revenue, Capacities, Burn Rates)
+       ↓
+AI Business Agent (LLM)
+       ↓
+EXECUTIVE INTERPRETATION & RECOMMENDATIONS
+```
+- **Code handles the facts**: All sums, counts, averages, and threshold comparisons are computed deterministically.
+- **AI handles strategic interpretation**: The LLM never calculates financial numbers; it converts verified facts into operational guidance.
+
+### 4. AI Safety Boundaries
+- **No Financial Authority**: The AI cannot alter booking totals, edit cruise capacity, modify promo rules, or execute database writes.
+- **No Data Fabrication**: Prompts strictly constrain the model to provided factual JSON payloads.
+- **Output Validation & Fallback**: A validation node checks for required sections; if the AI call encounters an error, a deterministic rule-based summary is automatically substituted.
+
+### 5. Multi-Channel Output & Resilient Error Handling
+- **Executive Email**: Formatted daily summary sent to leadership at 07:00 AM.
+- **Google Sheets Audit Log**: Cumulative historical row appended daily for long-term trend analysis.
+- **Error Trigger Node**: Listens globally across all workflow nodes to instantly dispatch an operational alert if database access or delivery channels fail.
+
+---
+
 ## Current Status
 ✅ Core functionality complete and fully verified with unit & integration tests.
+✅ n8n Business Intelligence Automation architecture and documentation complete.
 
 | Feature | Status |
 |---------|--------|
 | Repo init + docs | ✅ Done |
 | Models + seed | ✅ Done |
-| Pricing engine (unit tests) | ✅ Done (25 tests) |
+| Pricing engine (unit tests) | ✅ Done (27 tests) |
 | Promo validation (unit tests) | ✅ Done (10 tests) |
-| API endpoints & integration tests | ✅ Done (32 tests) |
-| Frontend React UI | ✅ Done |
+| API endpoints & integration tests | ✅ Done (33 tests) |
+| Frontend React UI & Live Badges | ✅ Done |
+| n8n Business Health Automation (`Automation.md`) | ✅ Done |

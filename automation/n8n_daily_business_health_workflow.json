@@ -1,0 +1,217 @@
+{
+  "name": "Daily Cruise Business Health & Intelligence Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-01-schedule-trigger",
+      "name": "01 Schedule Trigger (07:00 AM)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "orders",
+        "query": "={\n  \"createdAt\": {\n    \"$gte\": new Date(new Date().setDate(new Date().getDate() - 1)).toISOString()\n  }\n}"
+      },
+      "id": "node-02-get-orders",
+      "name": "02 Get Yesterday Orders",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.1,
+      "position": [320, 200]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "cruises",
+        "query": "{}"
+      },
+      "id": "node-03-get-cruises",
+      "name": "03 Get Cruise Capacity",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.1,
+      "position": [320, 320]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "promocodes",
+        "query": "{}"
+      },
+      "id": "node-04-get-promos",
+      "name": "04 Get Promo Code Health",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.1,
+      "position": [320, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 05 Aggregate Business Metrics (Pure deterministic calculations)\nconst orders = $('02 Get Yesterday Orders').all().map(i => i.json);\nconst cruises = $('03 Get Cruise Capacity').all().map(i => i.json);\nconst promos = $('04 Get Promo Code Health').all().map(i => i.json);\n\nconst totalRevenue = orders.reduce((sum, o) => sum + (o.grandTotal || 0), 0);\nconst totalBookings = orders.length;\nconst totalPassengers = orders.reduce((sum, o) => sum + ((o.passengers && o.passengers.length) || 0), 0);\nconst aov = totalBookings > 0 ? totalRevenue / totalBookings : 0;\n\n// Top booked cruise\nconst cruiseCountMap = {};\nfor (const o of orders) {\n  const name = o.cruiseNameSnapshot || 'Unknown Route';\n  cruiseCountMap[name] = (cruiseCountMap[name] || 0) + 1;\n}\nlet topCruise = 'None';\nlet maxCount = 0;\nfor (const [name, count] of Object.entries(cruiseCountMap)) {\n  if (count > maxCount) { topCruise = name; maxCount = count; }\n}\n\nreturn [{\n  json: {\n    date: new Date().toISOString().split('T')[0],\n    totalRevenue: Math.round((totalRevenue + Number.EPSILON) * 100) / 100,\n    totalBookings,\n    totalPassengers,\n    averageOrderValue: Math.round((aov + Number.EPSILON) * 100) / 100,\n    topCruise,\n    cruisesRaw: cruises,\n    promosRaw: promos\n  }\n}];"
+      },
+      "id": "node-05-aggregate-metrics",
+      "name": "05 Aggregate Business Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [560, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 06 Deterministic Business Rules Analysis\nconst data = $input.first().json;\nconst now = new Date();\nconst SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;\n\n// Capacity Alerts (threshold <= 2)\nconst capacityAlerts = data.cruisesRaw\n  .filter(c => c.capacityLeft <= 2)\n  .map(c => ({\n    cruise: `${c.cruiseLine} — ${c.ship}`,\n    capacityLeft: c.capacityLeft,\n    status: c.capacityLeft === 0 ? 'SOLD_OUT' : 'CRITICAL_LOW'\n  }));\n\n// Promo Alerts (burn rate >= 80% or expiry <= 7 days)\nconst promoAlerts = data.promosRaw\n  .filter(p => {\n    const usagePct = (p.currentTotalUses / p.maxTotalUses) * 100;\n    const expiryMs = new Date(p.validTo) - now;\n    return usagePct >= 80 || (expiryMs > 0 && expiryMs <= SEVEN_DAYS_MS);\n  })\n  .map(p => ({\n    code: p.code,\n    usagePercentage: Math.round((p.currentTotalUses / p.maxTotalUses) * 100),\n    currentUses: p.currentTotalUses,\n    maxUses: p.maxTotalUses,\n    validTo: p.validTo,\n    isNearLimit: (p.currentTotalUses / p.maxTotalUses) >= 0.8,\n    isExpiringSoon: (new Date(p.validTo) - now) <= SEVEN_DAYS_MS\n  }));\n\nreturn [{\n  json: {\n    date: data.date,\n    performance: {\n      revenue: data.totalRevenue,\n      bookings: data.totalBookings,\n      passengers: data.totalPassengers,\n      averageOrderValue: data.averageOrderValue,\n      topCruise: data.topCruise\n    },\n    capacityAlerts,\n    promoAlerts\n  }\n}];"
+      },
+      "id": "node-06-deterministic-analysis",
+      "name": "06 Deterministic Business Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are the Odysseus Cruise Executive Operations AI Agent.\nAnalyze the following pre-calculated business data from yesterday and live inventory:\n\nPerformance Summary:\n- Revenue: ${{ $json.performance.revenue }}\n- Bookings: {{ $json.performance.bookings }}\n- Passengers: {{ $json.performance.passengers }}\n- Top Route: {{ $json.performance.topCruise }}\n\nCapacity Alerts:\n{{ JSON.stringify($json.capacityAlerts) }}\n\nPromo Code Health Alerts:\n{{ JSON.stringify($json.promoAlerts) }}\n\nProvide:\n1. Executive Performance Summary (2-3 sentences)\n2. Key Inventory & Commercial Risks\n3. 3-4 High-Priority Actionable Recommendations for Sales and Marketing.\n\nStrict Rule: Do not invent numbers. Base all advice strictly on the facts provided above."
+      },
+      "id": "node-07-ai-agent",
+      "name": "07 AI Business Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 08 Validate AI Response & Build Safe Payload\nconst aiResponse = $input.first().json.output || $input.first().json.text || '';\nconst prevData = $('06 Deterministic Business Analysis').first().json;\n\nconst isValid = aiResponse && aiResponse.length > 50;\n\nconst safeInsights = isValid ? aiResponse : `Rule-based Summary: Yesterday achieved $${prevData.performance.revenue} across ${prevData.performance.bookings} bookings. ${prevData.capacityAlerts.length} capacity bottlenecks identified.`;\n\nreturn [{\n  json: {\n    ...prevData,\n    aiInsights: safeInsights,\n    isValidAiResponse: isValid\n  }\n}];"
+      },
+      "id": "node-08-validate-ai-response",
+      "name": "08 Validate AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1220, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 09 Generate Final Email and Sheet Payload\nconst d = $input.first().json;\n\nconst emailHtml = `\n<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;\">\n  <div style=\"background: #1a365d; color: white; padding: 1.5rem; border-radius: 8px 8px 0 0;\">\n    <h2 style=\"margin: 0;\">⚓ Odysseus Daily Business Health</h2>\n    <p style=\"margin: 0.25rem 0 0 0; opacity: 0.85;\">Date: ${d.date} | 07:00 AM Executive Briefing</p>\n  </div>\n  <div style=\"background: white; border: 1px solid #e2e8f0; padding: 1.5rem; border-radius: 0 0 8px 8px;\">\n    <h3>📊 Yesterday's Commercial Performance</h3>\n    <p><strong>Revenue:</strong> $${d.performance.revenue.toLocaleString()} | <strong>Bookings:</strong> ${d.performance.bookings} | <strong>Passengers:</strong> ${d.performance.passengers}</p>\n    <p><strong>Average Order Value:</strong> $${d.performance.averageOrderValue.toLocaleString()} | <strong>Top Cruise:</strong> ${d.performance.topCruise}</p>\n    <hr style=\"border: none; border-top: 1px solid #edf2f7; margin: 1rem 0;\" />\n    <h3>⚠️ Inventory & Promo Alerts</h3>\n    <p><strong>Capacity Alerts:</strong> ${d.capacityAlerts.length} route(s) at critical/sold-out status.</p>\n    <p><strong>Promo Alerts:</strong> ${d.promoAlerts.length} code(s) near limit or expiring soon.</p>\n    <hr style=\"border: none; border-top: 1px solid #edf2f7; margin: 1rem 0;\" />\n    <h3>🧠 AI Strategic Insights & Recommendations</h3>\n    <div style=\"background: #f7fafc; padding: 1rem; border-radius: 6px; border-left: 4px solid #2b6cb0;\">\n      ${d.aiInsights.replace(/\\n/g, '<br/>')}\n    </div>\n  </div>\n</div>\n`;\n\nreturn [{\n  json: {\n    ...d,\n    emailHtml,\n    sheetRow: {\n      Date: d.date,\n      Revenue: d.performance.revenue,\n      Bookings: d.performance.bookings,\n      Passengers: d.performance.passengers,\n      TopCruise: d.performance.topCruise,\n      CapacityAlertsCount: d.capacityAlerts.length,\n      PromoAlertsCount: d.promoAlerts.length\n    }\n  }\n}];"
+      },
+      "id": "node-09-generate-final-report",
+      "name": "09 Generate Final Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1440, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "reports@odysseus-cruises.com",
+        "toEmail": "executives@odysseus-cruises.com",
+        "subject": "=⚓ Odysseus Daily Business Health Briefing — {{ $json.date }}",
+        "html": "={{ $json.emailHtml }}"
+      },
+      "id": "node-10-send-email",
+      "name": "10 Send Email Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1680, 200]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1_Odysseus_Daily_Business_Health_Log_SpreadsheetId",
+          "mode": "id"
+        },
+        "sheetName": "Daily_Log",
+        "columns": {
+          "mappingMode": "autoMapInputData"
+        }
+      },
+      "id": "node-11-google-sheets",
+      "name": "11 Append Google Sheets Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1680, 400]
+    },
+    {
+      "parameters": {},
+      "id": "node-12-error-trigger",
+      "name": "12 Error Trigger & Incident Alert",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [100, 600]
+    }
+  ],
+  "connections": {
+    "01 Schedule Trigger (07:00 AM)": {
+      "main": [
+        [
+          { "node": "02 Get Yesterday Orders", "type": "main", "index": 0 },
+          { "node": "03 Get Cruise Capacity", "type": "main", "index": 0 },
+          { "node": "04 Get Promo Code Health", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "02 Get Yesterday Orders": {
+      "main": [
+        [
+          { "node": "05 Aggregate Business Metrics", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "03 Get Cruise Capacity": {
+      "main": [
+        [
+          { "node": "05 Aggregate Business Metrics", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "04 Get Promo Code Health": {
+      "main": [
+        [
+          { "node": "05 Aggregate Business Metrics", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "05 Aggregate Business Metrics": {
+      "main": [
+        [
+          { "node": "06 Deterministic Business Analysis", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "06 Deterministic Business Analysis": {
+      "main": [
+        [
+          { "node": "07 AI Business Agent", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "07 AI Business Agent": {
+      "main": [
+        [
+          { "node": "08 Validate AI Response", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "08 Validate AI Response": {
+      "main": [
+        [
+          { "node": "09 Generate Final Report", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "09 Generate Final Report": {
+      "main": [
+        [
+          { "node": "10 Send Email Report", "type": "main", "index": 0 },
+          { "node": "11 Append Google Sheets Log", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  }
+}

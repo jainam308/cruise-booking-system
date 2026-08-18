@@ -6,6 +6,7 @@ const { connect } = require('./db');
 const cruisesRouter = require('./routes/cruises');
 const bookingsRouter = require('./routes/bookings');
 const authRouter = require('./routes/auth');
+const adminRouter = require('./routes/admin');
 const { structuredLogger } = require('./middleware/logger');
 const { createRateLimiter } = require('./middleware/rateLimiter');
 
@@ -23,6 +24,7 @@ app.use('/api', globalLimiter);
 app.use('/api/auth', authLimiter, authRouter);
 app.use('/api/cruises', cruisesRouter);
 app.use('/api/bookings', bookingsRouter);
+app.use('/api/admin', adminRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

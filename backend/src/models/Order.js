@@ -52,14 +52,9 @@ const orderSchema = new mongoose.Schema({
   // Pre-tax subtotal
   preTaxSubtotal: { type: Number, required: true },
 
-  // Promo code (null if none applied)
+  // Promo code (null if none applied). Uses Mixed so null is a valid value.
   promoCodeSnapshot: {
-    type: {
-      code:           String,
-      type:           String,
-      value:          Number,
-      discountAmount: Number,
-    },
+    type: mongoose.Schema.Types.Mixed,
     default: null,
   },
   promoDiscount: { type: Number, required: true, default: 0 },

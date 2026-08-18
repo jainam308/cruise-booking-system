@@ -76,7 +76,9 @@ router.post('/quote', async (req, res) => {
     let customerPromoUseCount = 0;
     if (promoCode) {
       promo = await PromoCode.findOne({ code: promoCode.toUpperCase() }).lean();
-      if (promo && customerEmail) {
+      // Fail fast if code string was given but not found — don't silently ignore it
+      if (!promo) return res.status(400).json({ error: 'Promo code not found.' });
+      if (customerEmail) {
         customerPromoUseCount = await Order.countDocuments({
           customerEmail: customerEmail.toLowerCase(),
           'promoCodeSnapshot.code': promo.code,
@@ -121,13 +123,25 @@ router.post('/confirm', async (req, res) => {
     const cruise = await Cruise.findById(cruiseId).lean();
     if (!cruise) return res.status(404).json({ error: 'Cruise not found.' });
 
+    // Early capacity check — gives a clear 400 before touching any writes.
+    // The atomic update below is still the safety net for race conditions.
+    if (cruise.capacityLeft < passengers.length) {
+      return res.status(400).json({
+        error: cruise.capacityLeft === 0
+          ? 'This cruise is sold out.'
+          : `Not enough capacity. Only ${cruise.capacityLeft} place(s) remaining.`,
+      });
+    }
+
     const rules = await loadRules();
 
     let promo = null;
     let customerPromoUseCount = 0;
     if (promoCode) {
       promo = await PromoCode.findOne({ code: promoCode.toUpperCase() }).lean();
-      if (promo && customerEmail) {
+      // Fail fast if code string was given but not found — don't silently ignore it
+      if (!promo) return res.status(400).json({ error: 'Promo code not found.' });
+      if (customerEmail) {
         customerPromoUseCount = await Order.countDocuments({
           customerEmail: customerEmail.toLowerCase(),
           'promoCodeSnapshot.code': promo.code,

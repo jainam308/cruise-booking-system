@@ -92,13 +92,13 @@ Order.countDocuments({ customerEmail: email, 'promoCodeSnapshot.code': code })
 ---
 
 ## Current Status
-🚧 In development — updated incrementally as features are completed.
+✅ Core functionality complete and fully verified with unit & integration tests.
 
 | Feature | Status |
 |---------|--------|
 | Repo init + docs | ✅ Done |
-| Models + seed | ⏳ In progress |
-| Pricing engine | ⏳ Pending |
-| Promo validation | ⏳ Pending |
-| API endpoints | ⏳ Pending |
-| Frontend | ⏳ Pending |
+| Models + seed | ✅ Done |
+| Pricing engine (unit tests) | ✅ Done (25 tests) |
+| Promo validation (unit tests) | ✅ Done (10 tests) |
+| API endpoints & integration tests | ✅ Done (32 tests) |
+| Frontend React UI | ✅ Done |

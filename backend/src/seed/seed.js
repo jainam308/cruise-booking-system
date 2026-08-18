@@ -4,6 +4,7 @@ const Cruise = require('../models/Cruise');
 const PromoCode = require('../models/PromoCode');
 const Settings = require('../models/Settings');
 const PricingRules = require('../models/PricingRules');
+const User = require('../models/User');
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/cruise_booking';
 
@@ -17,7 +18,32 @@ async function seed() {
     PromoCode.deleteMany({}),
     Settings.deleteMany({}),
     PricingRules.deleteMany({}),
+    User.deleteMany({}),
   ]);
+
+  // ── Seed Users for 3 Roles ────────────────────────────────────────────────
+  await User.create([
+    {
+      name: 'Odysseus Administrator',
+      email: 'admin@odysseus.com',
+      password: 'Admin@123',
+      role: 'admin'
+    },
+    {
+      name: 'Elena Rostova (Travel Agent)',
+      email: 'agent@odysseus.com',
+      password: 'Agent@123',
+      role: 'agent',
+      agencyName: 'Odysseus Premier Partners'
+    },
+    {
+      name: 'David Miller (Customer)',
+      email: 'customer@odysseus.com',
+      password: 'Customer@123',
+      role: 'customer'
+    }
+  ]);
+  console.log('✓ Users seeded (admin, agent, customer)');
 
   // ── Cruises ──────────────────────────────────────────────────────────────
   await Cruise.insertMany([

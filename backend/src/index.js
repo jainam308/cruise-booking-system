@@ -5,6 +5,7 @@ const { connect } = require('./db');
 
 const cruisesRouter = require('./routes/cruises');
 const bookingsRouter = require('./routes/bookings');
+const authRouter = require('./routes/auth');
 
 const app = express();
 app.use(cors());
@@ -12,6 +13,7 @@ app.use(express.json());
 
 app.use('/api/cruises', cruisesRouter);
 app.use('/api/bookings', bookingsRouter);
+app.use('/api/auth', authRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
